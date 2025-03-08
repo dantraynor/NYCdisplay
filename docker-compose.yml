@@ -3,27 +3,29 @@ services:
     build: 
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
+    expose:
+      - "8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/subway_db
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db
       - redis
+    networks:
+      - app_network
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
+      - "80:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - app_network
 
   db:
     image: postgres:15
@@ -45,4 +47,8 @@ services:
 
 volumes:
   postgres_data:
-  redis_data: 
+  redis_data:
+
+networks:
+  app_network:
+    driver: bridge
