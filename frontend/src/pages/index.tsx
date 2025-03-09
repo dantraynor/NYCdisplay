@@ -28,11 +28,11 @@ export default function Home() {
             transition={{ duration: 0.5 }}
             className="mx-auto max-w-2xl text-center"
           >
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
+            <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl font-sans">
               Dan Traynor
             </h1>
-            <p className="mt-6 text-lg leading-8 text-gray-600">
-              Software Engineer & Full Stack Developer
+            <p className="mt-6 text-lg leading-8 text-gray-600 font-sans">
+              &nbsp;
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
               <Link
