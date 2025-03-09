@@ -19,12 +19,16 @@ async def get_available_lines() -> Dict[str, List[str]]:
 @router.get("/feed/{line_group}")
 async def get_line_feed(
     line_group: str,
+    data_type: str = None,
     mta_service: MTAService = Depends(MTAService)
 ) -> Dict:
     """
     Get real-time feed data for a specific line group
+    Args:
+        line_group: The subway line group to fetch data for
+        data_type: Optional type of data to return (vehicle_positions, alerts, trip_updates)
     """
-    return await mta_service.get_feed_data(line_group)
+    return await mta_service.get_feed_data(line_group, data_type)
 
 @router.get("/status")
 async def get_service_status(

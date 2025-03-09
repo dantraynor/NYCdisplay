@@ -5,6 +5,7 @@ import { VehiclePosition, VehicleStopStatus } from '@/types/subway';
 
 interface LeafletMapProps {
     vehicles?: VehiclePosition[];
+    selectedLines: string[];
 }
 
 // Create icon only on client side
@@ -15,17 +16,18 @@ const icon = new Icon({
     popupAnchor: [0, -12],
 });
 
-const LeafletMap: React.FC<LeafletMapProps> = ({ vehicles }) => {
+const LeafletMap: React.FC<LeafletMapProps> = ({ vehicles, selectedLines }) => {
     return (
-        <div className="h-[600px] w-full rounded-lg overflow-hidden shadow-lg">
+        <div className="h-screen w-full">
             <MapContainer
-                center={[40.7128, -74.0060]} // NYC coordinates
-                zoom={12}
+                center={[40.7734168, -73.9699871]} // MTA map default center
+                zoom={14}
                 style={{ height: '100%', width: '100%' }}
+                zoomControl={false} // We'll add custom controls
             >
                 <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution">CARTO</a>'
                 />
                 
                 {vehicles?.map(vehicle => (

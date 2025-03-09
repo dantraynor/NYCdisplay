@@ -1,4 +1,5 @@
 from google.transit import gtfs_realtime_pb2
+from google.protobuf.message import DecodeError
 import requests
 from fastapi import HTTPException
 import logging
@@ -11,8 +12,19 @@ class MTAService:
     Service for handling MTA GTFS-realtime feed interactions
     """
     
-    # Public GTFS feed URL
-    FEED_URL = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"
+    # MTA feed URLs for different subway lines (GTFS-RT feeds)
+    FEED_URLS = {
+        "1-2-3": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",  # IRT feed
+        "4-5-6": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",  # IRT feed
+        "7": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",      # IRT feed
+        "A-C-E": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace",  # IND feed
+        "N-Q-R-W": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw",  # BMT feed
+        "B-D-F-M": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm",  # IND feed
+        "L": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l",    # BMT Canarsie feed
+        "G": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g",    # IND Crosstown feed
+        "J-Z": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz",  # BMT feed
+        "S": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-si"    # Staten Island feed
+    }
 
     def __init__(self):
         """
@@ -20,21 +32,44 @@ class MTAService:
         """
         self.feed = gtfs_realtime_pb2.FeedMessage()
 
-    async def get_feed_data(self, line_group: str = None) -> Dict:
+    async def get_feed_data(self, line_group: str = None, data_type: str = None) -> Dict:
         """
         Fetch real-time feed data
+        Args:
+            line_group: The subway line group to fetch data for
+            data_type: Type of data to return (vehicle_positions, alerts, trip_updates, or None for all)
         """
         try:
+            # Get the feed URL for the requested line group
+            feed_url = self.FEED_URLS.get(line_group)
+            if not feed_url:
+                raise HTTPException(status_code=400, detail=f"Invalid line group: {line_group}")
+
             response = requests.get(
-                self.FEED_URL,
+                feed_url,
                 headers={'Accept': 'application/x-google-protobuf'}
             )
             response.raise_for_status()
             
-            # Parse the protocol buffer
-            self.feed.ParseFromString(response.content)
-            
-            return self._process_feed_data(self.feed)
+            try:
+                # Parse the protocol buffer
+                self.feed.ParseFromString(response.content)
+                
+                # Process based on requested data type
+                if data_type == 'vehicle_positions':
+                    return self._process_vehicle_positions(self.feed)
+                elif data_type == 'alerts':
+                    return self._process_alerts(self.feed)
+                elif data_type == 'trip_updates':
+                    return self._process_trip_updates(self.feed)
+                else:
+                    return self._process_feed_data(self.feed)
+            except DecodeError as e:
+                logger.error(f"Failed to decode GTFS-RT data: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to decode GTFS-RT data from MTA feed"
+                )
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching MTA data: {str(e)}")
@@ -45,41 +80,53 @@ class MTAService:
 
     def _process_feed_data(self, feed: gtfs_realtime_pb2.FeedMessage) -> Dict:
         """
-        Process the GTFS feed data into a more usable format
+        Process all GTFS feed data into a more usable format
         """
-        processed_data = {
+        return {
             'header': {
                 'timestamp': feed.header.timestamp,
                 'version': feed.header.gtfs_realtime_version
             },
-            'entities': []
+            'vehicle_positions': self._process_vehicle_positions(feed),
+            'alerts': self._process_alerts(feed),
+            'trip_updates': self._process_trip_updates(feed)
         }
 
+    def _process_vehicle_positions(self, feed: gtfs_realtime_pb2.FeedMessage) -> List[Dict]:
+        """
+        Process only vehicle position data
+        """
+        vehicles = []
         for entity in feed.entity:
-            processed_entity = {'id': entity.id}
-            
-            # Process trip updates
-            if entity.HasField('trip_update'):
-                trip_data = self._process_trip_update(entity.trip_update)
-                if trip_data:
-                    processed_entity['trip'] = trip_data
-            
-            # Process vehicle positions
             if entity.HasField('vehicle'):
                 vehicle_data = self._process_vehicle(entity.vehicle)
                 if vehicle_data:
-                    processed_entity['vehicle'] = vehicle_data
-            
-            # Process alerts
+                    vehicles.append({'id': entity.id, **vehicle_data})
+        return vehicles
+
+    def _process_alerts(self, feed: gtfs_realtime_pb2.FeedMessage) -> List[Dict]:
+        """
+        Process only alert data
+        """
+        alerts = []
+        for entity in feed.entity:
             if entity.HasField('alert'):
                 alert_data = self._process_alert(entity.alert)
                 if alert_data:
-                    processed_entity['alert'] = alert_data
-            
-            if len(processed_entity) > 1:  # Only add if we have more than just the ID
-                processed_data['entities'].append(processed_entity)
+                    alerts.append({'id': entity.id, **alert_data})
+        return alerts
 
-        return processed_data
+    def _process_trip_updates(self, feed: gtfs_realtime_pb2.FeedMessage) -> List[Dict]:
+        """
+        Process only trip update data
+        """
+        updates = []
+        for entity in feed.entity:
+            if entity.HasField('trip_update'):
+                trip_data = self._process_trip_update(entity.trip_update)
+                if trip_data:
+                    updates.append({'id': entity.id, **trip_data})
+        return updates
 
     def _process_trip_update(self, trip_update: gtfs_realtime_pb2.TripUpdate) -> Optional[Dict]:
         """

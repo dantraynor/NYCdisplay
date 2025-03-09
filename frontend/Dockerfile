@@ -5,8 +5,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies and Next.js globally
+RUN npm install && \
+    npm install -g next
 
 # Copy the rest of the application
 COPY . .
