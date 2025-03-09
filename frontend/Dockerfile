@@ -15,5 +15,8 @@ COPY . .
 # Expose the port
 EXPOSE 3000
 
-# Start the application in development mode
-CMD ["npm", "run", "dev"] 
+# Build the application
+RUN npm run build
+
+# Start the application in production mode
+CMD ["npm", "start"] 
